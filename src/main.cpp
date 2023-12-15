@@ -18,12 +18,12 @@ unsigned long samples = 0; //Allows us to calculate the actual read rate in Hz
 byte deviceType;           //Keeps track of if this sensor is a one axis of two axis sensor
 
 // Izhikevich model parameters
-float a = 0.02;
-float b = 0.2;
-float c = -65;
-float d = 6;
-float v = -70; // Initial membrane potential
-float u = b * v; // Initial recovery variable
+double a = 0.02;
+double b = 0.2;
+double c = -65;
+double d = 6;
+double v = -70; // Initial membrane potential
+double u = b * v; // Initial recovery variable
 
 
 void setup()
@@ -38,7 +38,7 @@ void setup()
   Wire.begin();
   Wire.setClock(400000); //Note this sensor supports 400kHz I2C
 
-  if (myFlexSensor.begin(18) == false)
+  if (myFlexSensor.begin(32) == false)
   {
     Serial.println(F("No sensor detected. Check wiring. Freezing..."));
     while (1)
@@ -62,10 +62,11 @@ void loop()
     if (myFlexSensor.available() == true) //We still need to call .available because it loads the X and Y variables
     {
       samples++;
-      float sensorValue = myFlexSensor.getX(); // Read the sensor value
+      double sensorValue = myFlexSensor.getX(); // Read the sensor value
 
       // Convert sensor value to current input for the Izhikevich model
-      float I = sensorValue; // Simple direct conversion, adjust as needed
+      // get absolute value of sensor value
+      double I = abs(sensorValue);
 
       // Update the Izhikevich model
       v += 0.04 * v * v + 5 * v + 140 - u + I;
@@ -79,13 +80,13 @@ void loop()
       }
 
       // Output sensor value and model variables
-      Serial.print(samples / (millis() / 1000.0), 2);
-      Serial.print("Hz, Sensor: ");
-      Serial.print(sensorValue);
-      Serial.print(", Membrane Potential: ");
-      Serial.print(v);
-      Serial.print(", Recovery Variable: ");
-      Serial.println(u);
+      // Serial.print(samples / (millis() / 1000.0), 2);
+      // Serial.print("Hz, Sensor: ");
+      // Serial.print(sensorValue);
+      // Serial.print(", Membrane Potential: ");
+      // Serial.print(v);
+      // Serial.print(", Recovery Variable: ");
+      // Serial.println(u);
     }
   }
 

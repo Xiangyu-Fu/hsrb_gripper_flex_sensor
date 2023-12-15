@@ -1,0 +1,5 @@
+{
+    "terminal.integrated.defaultProfile.windows": "Command Prompt",
+    "platformio-ide.terminal": "cmd",
+    "python.terminal.activateEnvironment": false
+  }
