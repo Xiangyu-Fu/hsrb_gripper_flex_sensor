@@ -7,7 +7,8 @@
 #include "bsp_ads.h"
 #include "Wire.h"
 
-ADS myFlexSensor; //Create object of the ADS class
+ADS ads_1; 
+ADS ads_2;
 
 const byte dataReadyPin = 4; //This can be any pin, but avoid pin 2. See: https://learn.sparkfun.com/tutorials/sparkfun-pro-nrf52840-mini-hookup-guide
 // "Because pin 2's state at reset is sampled by the bootloader, be careful using it with any component that may pull the pin low on startup."
@@ -26,6 +27,8 @@ double v = -70; // Initial membrane potential
 double u = b * v; // Initial recovery variable
 
 
+void updateIzhikevichModel(double sensorValue, int sensorNumber);
+
 void setup()
 {
   pinMode(dataReadyPin, INPUT);
@@ -38,20 +41,20 @@ void setup()
   Wire.begin();
   Wire.setClock(400000); //Note this sensor supports 400kHz I2C
 
-  if (myFlexSensor.begin(32) == false)
+  if (ads_1.begin(32) == false)
   {
     Serial.println(F("No sensor detected. Check wiring. Freezing..."));
     while (1)
       ;
   }
+  ads_1.run(); //Begin sensor outputting readings
 
-  deviceType = myFlexSensor.getDeviceType();
-  if (deviceType == ADS_ONE_AXIS)
-    Serial.println(F("One axis displacement sensor detected"));
-  else if (deviceType == ADS_TWO_AXIS)
-    Serial.println(F("Two axis displacement sensor detected"));
-
-  myFlexSensor.run(); //Begin sensor outputting readings
+  if (ads_2.begin(33) == false)
+  {
+    Serial.println(F("No sensor detected. Check wiring. Freezing..."));
+    while (1)
+      ;
+  }
 }
 
 void loop()
@@ -59,35 +62,54 @@ void loop()
 
   if (digitalRead(dataReadyPin) == LOW)
   {
-    if (myFlexSensor.available() == true) //We still need to call .available because it loads the X and Y variables
+    if (ads_1.available() == true)
     {
       samples++;
-      double sensorValue = myFlexSensor.getX(); // Read the sensor value
+      double sensorValue = ads_1.getX(); // Read the sensor value
 
-      // Convert sensor value to current input for the Izhikevich model
-      // get absolute value of sensor value
-      double I = abs(sensorValue);
+      updateIzhikevichModel(sensorValue, 1);
+    }
 
-      // Update the Izhikevich model
-      v += 0.04 * v * v + 5 * v + 140 - u + I;
-      u += a * (b * v - u);
+    if (ads_2.available() == true) 
+    {
+      samples++;
+      double sensorValue = ads_2.getX(); // Read the sensor value
 
-      // Check for spike condition
-      if (v >= 30) {
-        v = c;
-        u += d;
-        Serial.println("Neuron spike!");
-      }
-
-      // Output sensor value and model variables
-      // Serial.print(samples / (millis() / 1000.0), 2);
-      // Serial.print("Hz, Sensor: ");
-      // Serial.print(sensorValue);
-      // Serial.print(", Membrane Potential: ");
-      // Serial.print(v);
-      // Serial.print(", Recovery Variable: ");
-      // Serial.println(u);
+      updateIzhikevichModel(sensorValue, 2);
     }
   }
 
+}
+
+
+void updateIzhikevichModel(double sensorValue, int sensorNumber) {
+  // Convert sensor value to current input for the Izhikevich model
+  double I = abs(sensorValue);
+
+  // Update the Izhikevich model
+  v += 0.04 * v * v + 5 * v + 140 - u + I;
+  u += a * (b * v - u);
+
+  // Check for spike condition
+  if (v >= 30) {
+    v = c;
+    u += d;
+    Serial.print("Neuron ");
+    Serial.print(sensorNumber);
+    Serial.println(" spike!");
+  }
+
+  bool __verbose = false;
+
+  if (__verbose){
+    // Output sensor value and model variables
+    Serial.print(samples / (millis() / 1000.0), 2);
+    Serial.print("Hz, Sensor: ");
+    Serial.print(sensorValue);
+    Serial.print(", Membrane Potential: ");
+    Serial.print(v);
+    Serial.print(", Recovery Variable: ");
+    Serial.println(u);
+
+  }
 }
