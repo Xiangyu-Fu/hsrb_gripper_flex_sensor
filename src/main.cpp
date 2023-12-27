@@ -15,7 +15,8 @@ const byte dataReadyPin = 4; //This can be any pin, but avoid pin 2. See: https:
 
 long lastTime;
 
-unsigned long samples = 0; //Allows us to calculate the actual read rate in Hz
+unsigned long samples_1 = 0; //Allows us to calculate the actual read rate in Hz
+unsigned long samples_2 = 0; //Allows us to calculate the actual read rate in Hz
 byte deviceType;           //Keeps track of if this sensor is a one axis of two axis sensor
 
 // Izhikevich model parameters
@@ -23,15 +24,17 @@ double a = 0.02;
 double b = 0.2;
 double c = -65;
 double d = 6;
-double v = -70; // Initial membrane potential
-double u = b * v; // Initial recovery variable
+double v_1 = -70; // Initial membrane potential
+double u_1 = b * v_1; // Initial recovery variable
+double v_2 = -70; // Initial membrane potential
+double u_2 = b * v_2; // Initial recovery variable
 
 
-void updateIzhikevichModel(double sensorValue, int sensorNumber);
+void calibrate(ADS myFlexSensor);
 
 void setup()
 {
-  pinMode(dataReadyPin, INPUT);
+  // pinMode(dataReadyPin, INPUT);
 
   Serial.begin(115200);
   while (!Serial)
@@ -41,75 +44,136 @@ void setup()
   Wire.begin();
   Wire.setClock(400000); //Note this sensor supports 400kHz I2C
 
-  if (ads_1.begin(32) == false)
+  if (ads_1.begin(33) == false)
   {
     Serial.println(F("No sensor detected. Check wiring. Freezing..."));
     while (1)
       ;
   }
-  ads_1.run(); //Begin sensor outputting readings
 
-  if (ads_2.begin(33) == false)
+  Serial.println(F("Sensor 1 detected!"));
+
+  if (ads_2.begin(34) == false)
   {
     Serial.println(F("No sensor detected. Check wiring. Freezing..."));
     while (1)
       ;
   }
+  Serial.println(F("Sensor 2 detected!"));
+  ads_1.enableStretching(true); // Enable receiving stretching data
+  ads_2.enableStretching(true); // Enable receiving stretching data
 }
 
 void loop()
 {
 
-  if (digitalRead(dataReadyPin) == LOW)
+  if (ads_1.available() == true  && ads_2.available() == true)
   {
-    if (ads_1.available() == true)
-    {
-      samples++;
-      double sensorValue = ads_1.getX(); // Read the sensor value
+    Serial.print("1,");
+    Serial.print(ads_1.getX());
+    Serial.print(",");
+    Serial.print(ads_1.getStretchingData()); 
+    Serial.print(",2,");
+    Serial.print(ads_2.getX());
+    Serial.print(",");
+    Serial.print(ads_2.getStretchingData());   
+    Serial.print(",");
+    Serial.println();
+    
+    // double X_1 = ads_1.getX();
+    // double I_1 = abs(X_1);
 
-      updateIzhikevichModel(sensorValue, 1);
-    }
+    // v_1 += 0.04 * v_1 * v_1 + 5 * v_1 + 140 - u_1 + I_1;
+    // u_1 += a * (b * v_1 - u_1);
 
-    if (ads_2.available() == true) 
-    {
-      samples++;
-      double sensorValue = ads_2.getX(); // Read the sensor value
-
-      updateIzhikevichModel(sensorValue, 2);
-    }
+    // // Check for ads_1 spike condition
+    // if (v_1 >= 30) {
+    //   v_1 = c;
+    //   u_1 += d;
+    //   // Serial.println("Neuron 1 spike");
+    // }
   }
+  // delay(100);
+  // if (ads_2.available() == true )
+  // {
+  //   Serial.print(" Sensor 2: ");
+  //   Serial.println(ads_2.getX());
+  //   double X_2 = ads_2.getX();
+  //   double I_2 = abs(X_2);
+
+  //   v_2 += 0.04 * v_2 * v_2 + 5 * v_2 + 140 - u_2 + I_2;
+  //   u_2 += a * (b * v_2 - u_2);
+
+  //   // Check for ads_2 spike condition
+  //   if (v_2 >= 30) {
+  //     v_2 = c;
+  //     u_2 += d;
+  //     Serial.println("Neuron 2 spike");
+  //   }
+
+  // }
+  delay(100);
 
 }
 
 
-void updateIzhikevichModel(double sensorValue, int sensorNumber) {
-  // Convert sensor value to current input for the Izhikevich model
-  double I = abs(sensorValue);
+// void updateIzhikevichModel(double sensorValue, int sensorNumber) {
+//   // Convert sensor value to current input for the Izhikevich model
+//   double I = abs(sensorValue);
 
-  // Update the Izhikevich model
-  v += 0.04 * v * v + 5 * v + 140 - u + I;
-  u += a * (b * v - u);
+//   // Update the Izhikevich model
+//   v += 0.04 * v * v + 5 * v + 140 - u + I;
+//   u += a * (b * v - u);
 
-  // Check for spike condition
-  if (v >= 30) {
-    v = c;
-    u += d;
-    Serial.print("Neuron ");
-    Serial.print(sensorNumber);
-    Serial.println(" spike!");
+//   // Check for spike condition
+//   if (v >= 30) {
+//     v = c;
+//     u += d;
+//     Serial.print("Neuron ");
+//     Serial.print(sensorNumber);
+//     Serial.println(" spike!");
+//   }
+
+//   bool __verbose = false;
+
+//   if (__verbose){
+//     // Output sensor value and model variables
+//     Serial.print(samples_1 / (millis() / 1000.0), 2);
+//     Serial.print("Hz, Sensor: ");
+//     Serial.print(sensorValue);
+//     Serial.print(", Membrane Potential: ");
+//     Serial.print(v);
+//     Serial.print(", Recovery Variable: ");
+//     Serial.println(u);
+
+//   }
+// }
+
+void calibrate(ADS myFlexSensor)
+{
+  Serial.println(F("Calibration routine"));
+
+  while (Serial.available() > 0)
+    Serial.read(); //Flush all characters
+  Serial.println(F("Press a key when the sensor is flat and straight on a table"));
+  while (Serial.available() == 0)
+  {
+    myFlexSensor.available();
+    delay(10); //Wait for user to press character
   }
 
-  bool __verbose = false;
+  myFlexSensor.calibrateZero(); //Call when sensor is straight on both axis
 
-  if (__verbose){
-    // Output sensor value and model variables
-    Serial.print(samples / (millis() / 1000.0), 2);
-    Serial.print("Hz, Sensor: ");
-    Serial.print(sensorValue);
-    Serial.print(", Membrane Potential: ");
-    Serial.print(v);
-    Serial.print(", Recovery Variable: ");
-    Serial.println(u);
-
+  while (Serial.available() > 0)
+    Serial.read(); //Flush all characters
+  Serial.println(F("Good. Now press a key when the sensor is flat on table but bent at 90 degrees (along X axis)."));
+  while (Serial.available() == 0)
+  {
+    myFlexSensor.available();
+    delay(10); //Wait for user to press character
   }
+
+  myFlexSensor.calibrateX(); //Call when sensor is straight on Y axis and 90 degrees on X axis
+
+  Serial.println(F("Calibration complete."));
 }
