@@ -7,109 +7,135 @@
 #include "bsp_ads.h"
 #include "Wire.h"
 
-ADS ads_1; 
-ADS ads_2;
+ADS myFlexSensor; //Create object of the ADS class
 
-const byte dataReadyPin = 4; //This can be any pin, but avoid pin 2. See: https://learn.sparkfun.com/tutorials/sparkfun-pro-nrf52840-mini-hookup-guide
-// "Because pin 2's state at reset is sampled by the bootloader, be careful using it with any component that may pull the pin low on startup."
-
-long lastTime;
-
-unsigned long samples = 0; //Allows us to calculate the actual read rate in Hz
-byte deviceType;           //Keeps track of if this sensor is a one axis of two axis sensor
-
-// Izhikevich model parameters
-double a = 0.02;
-double b = 0.2;
-double c = -65;
-double d = 6;
-double v = -70; // Initial membrane potential
-double u = b * v; // Initial recovery variable
-
-
-void updateIzhikevichModel(double sensorValue, int sensorNumber);
+// declare functions
+byte findI2CDevice(byte startingAddress);
 
 void setup()
 {
-  pinMode(dataReadyPin, INPUT);
-
   Serial.begin(115200);
   while (!Serial)
     ;
   Serial.println(F("SparkFun Displacement Sensor Example"));
 
   Wire.begin();
-  Wire.setClock(400000); //Note this sensor supports 400kHz I2C
 
-  if (ads_1.begin(32) == false)
+  //Scan bus looking for a sensor
+  byte currentAddress;
+  for (currentAddress = 1; currentAddress < 127; currentAddress++)
   {
-    Serial.println(F("No sensor detected. Check wiring. Freezing..."));
+    currentAddress = findI2CDevice(currentAddress); //Start scanning at last address
+    if (currentAddress == 0)
+      break; //No device found!
+    if (myFlexSensor.begin(currentAddress) == true)
+      break; //Device found!
+  }
+
+  if (currentAddress == 0 || currentAddress == 127)
+  {
+    Serial.println("No Flex Sensors found on the I2C bus. Freezing...");
     while (1)
       ;
   }
-  ads_1.run(); //Begin sensor outputting readings
 
-  if (ads_2.begin(33) == false)
+  //Begin communication with sensor at current address
+  if (myFlexSensor.begin(currentAddress) == true)
   {
-    Serial.println(F("No sensor detected. Check wiring. Freezing..."));
+    Serial.print("Flex Sensor found at address 0x");
+    Serial.print(currentAddress, HEX);
+    Serial.print(" / ");
+    Serial.print(currentAddress); //Print decimal
+    Serial.println("(decimal)");
+
+    byte newAddress = 0;
     while (1)
-      ;
+    {
+      while (Serial.available())
+        Serial.read(); //Trash any incoming chars
+      Serial.println("Enter the address you'd like to change to in decimal. Valid is 8 to 119.");
+      while (Serial.available() == false)
+        ; //Wait for user to send character
+
+      newAddress = Serial.parseInt(); //Get decimal address from user
+      if (newAddress >= 8 && newAddress <= 119)
+        break; //Address is valid
+      Serial.println("Invalid address. Please try again.");
+    }
+
+    myFlexSensor.setAddress(newAddress); //Change I2C address of this device
+    //Valid addresses are 0x08 to 0x77 - 111 possible addresses!
+    //Device's I2C address is stored to memory and loaded on each power-on
+
+    delay(100); //Time required for device to record address to EEPROM and re-init its I2C
+
+    if (myFlexSensor.begin(newAddress) == true)
+    {
+      Serial.print("Address successfully changed to 0x");
+      Serial.print(newAddress, HEX);
+      Serial.print(" / ");
+      Serial.print(newAddress); //Print decimal
+      Serial.println("(decimal)");
+      Serial.print("Now load another example sketch using .begin(0x");
+      Serial.print(newAddress, HEX);
+      Serial.println(") to use this Flex Sensor");
+      Serial.println("Freezing...");
+      while (1)
+        ;
+    }
   }
+
+  //Something went wrong, begin scanning I2C bus for valid addresses
+  Serial.println("Address change failed. Beginning an I2C scan.");
 }
 
 void loop()
 {
+  Serial.println("Scanning...");
 
-  if (digitalRead(dataReadyPin) == LOW)
+  byte found = 0;
+  for (byte address = 1; address < 127; address++)
   {
-    if (ads_1.available() == true)
-    {
-      samples++;
-      double sensorValue = ads_1.getX(); // Read the sensor value
+    address = findI2CDevice(address); //Scans bus starting from given address. Returns address of discovered device.
 
-      updateIzhikevichModel(sensorValue, 1);
+    if (address > 0)
+    {
+      Serial.print("I2C device found at address 0x");
+      if (address < 0x0F)
+        Serial.print("0"); //Pretty print
+      Serial.print(address, HEX);
+      Serial.print(" / ");
+      Serial.print(address); //Print decimal
+      Serial.println("(decimal)");
+
+      found++;
     }
-
-    if (ads_2.available() == true) 
+    else
     {
-      samples++;
-      double sensorValue = ads_2.getX(); // Read the sensor value
-
-      updateIzhikevichModel(sensorValue, 2);
+      if (found == 0)
+        Serial.println("No I2C devices found\n");
+      break; //Done searching
     }
   }
 
+  delay(5000);
 }
 
+//Scans the ICC bus looking for devices
+//Start scanning from a given address
+byte findI2CDevice(byte startingAddress)
+{
+  if (startingAddress == 0)
+    startingAddress = 1; //Error check
 
-void updateIzhikevichModel(double sensorValue, int sensorNumber) {
-  // Convert sensor value to current input for the Izhikevich model
-  double I = abs(sensorValue);
+  for (byte address = startingAddress; address < 127; address++)
+  {
+    Wire.beginTransmission(address);
+    byte response = Wire.endTransmission();
 
-  // Update the Izhikevich model
-  v += 0.04 * v * v + 5 * v + 140 - u + I;
-  u += a * (b * v - u);
-
-  // Check for spike condition
-  if (v >= 30) {
-    v = c;
-    u += d;
-    Serial.print("Neuron ");
-    Serial.print(sensorNumber);
-    Serial.println(" spike!");
+    if (response == 0) //A device acknowledged us at this address!
+      return (address);
   }
 
-  bool __verbose = false;
-
-  if (__verbose){
-    // Output sensor value and model variables
-    Serial.print(samples / (millis() / 1000.0), 2);
-    Serial.print("Hz, Sensor: ");
-    Serial.print(sensorValue);
-    Serial.print(", Membrane Potential: ");
-    Serial.print(v);
-    Serial.print(", Recovery Variable: ");
-    Serial.println(u);
-
-  }
+  return (0); //No device found
 }
