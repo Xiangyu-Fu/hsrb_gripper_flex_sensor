@@ -3,8 +3,9 @@ import time
 from collections import defaultdict
 
 # Configuration
-port = "/dev/ttyUSB0"  # Replace with your UART port name
-baud_rate = 115200       # Set the baud rate
+# port = "/dev/ttyUSB0"       # Linux
+port = "COM3"               # Windows
+baud_rate = 115200          # Set the baud rate
 
 # Initialize serial connection
 ser = serial.Serial(port, baud_rate, timeout=1)

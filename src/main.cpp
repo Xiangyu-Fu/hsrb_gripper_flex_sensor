@@ -68,51 +68,53 @@ void loop()
 {
 
   if (ads_1.available() == true  && ads_2.available() == true)
-  {
-    Serial.print("1,");
-    Serial.print(ads_1.getX());
-    Serial.print(",");
-    Serial.print(ads_1.getStretchingData()); 
-    Serial.print(",2,");
-    Serial.print(ads_2.getX());
-    Serial.print(",");
-    Serial.print(ads_2.getStretchingData());   
-    Serial.print(",");
-    Serial.println();
-    
-    // double X_1 = ads_1.getX();
-    // double I_1 = abs(X_1);
+  {    
+    double X_1 = ads_1.getX();
+    double I_1 = abs(X_1);
 
-    // v_1 += 0.04 * v_1 * v_1 + 5 * v_1 + 140 - u_1 + I_1;
-    // u_1 += a * (b * v_1 - u_1);
+    v_1 += 0.04 * v_1 * v_1 + 5 * v_1 + 140 - u_1 + I_1;
+    u_1 += a * (b * v_1 - u_1);
 
-    // // Check for ads_1 spike condition
-    // if (v_1 >= 30) {
-    //   v_1 = c;
-    //   u_1 += d;
-    //   // Serial.println("Neuron 1 spike");
-    // }
+    // Check for ads_1 spike condition
+    if (v_1 >= 30) {
+      v_1 = c;
+      u_1 += d;
+      Serial.println("Neuron 1 spike");
+    }
+
+    double X_2 = ads_2.getX();
+    double I_2 = abs(X_2);
+
+    v_2 += 0.04 * v_2 * v_2 + 5 * v_2 + 140 - u_2 + I_2;
+    u_2 += a * (b * v_2 - u_2);
+
+    // Check for ads_2 spike condition
+    if (v_2 >= 30) {
+      v_2 = c;
+      u_2 += d;
+      Serial.println("Neuron 2 spike");
+    }
   }
-  // delay(100);
-  // if (ads_2.available() == true )
-  // {
-  //   Serial.print(" Sensor 2: ");
-  //   Serial.println(ads_2.getX());
-  //   double X_2 = ads_2.getX();
-  //   double I_2 = abs(X_2);
 
-  //   v_2 += 0.04 * v_2 * v_2 + 5 * v_2 + 140 - u_2 + I_2;
-  //   u_2 += a * (b * v_2 - u_2);
+    if (Serial.available())
+  {
+    byte incoming = Serial.read();
 
-  //   // Check for ads_2 spike condition
-  //   if (v_2 >= 30) {
-  //     v_2 = c;
-  //     u_2 += d;
-  //     Serial.println("Neuron 2 spike");
-  //   }
+    if (incoming == 'a')
+    {
+      calibrate(ads_1);
+    }
+      
+    else if (incoming == 'b')
+    {
+      calibrate(ads_2);
+    }
 
-  // }
-  delay(100);
+    else
+    {
+      Serial.println("press a or b to calibrate \n OR Reset the Arduino to back to read the sensor");
+    }
+  }
 
 }
 
