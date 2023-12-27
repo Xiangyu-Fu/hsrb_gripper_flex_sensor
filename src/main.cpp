@@ -1,3 +1,10 @@
+/*
+ * Project: HSRB Gripper with flex sensors
+ * Description: This code is used to read the flex sensors and send the data to the computer
+ * Author: Xiangyu Fu
+ * Date: 2023-12-27
+ */
+
 #if defined(ARDUINO_SAMD_ZERO) && defined(SERIAL_PORT_USBVIRTUAL)
   // Required for Serial on Zero based boards
   #define Serial SERIAL_PORT_USBVIRTUAL
@@ -118,6 +125,34 @@ void loop()
 
 }
 
+void calibrate(ADS myFlexSensor)
+{
+  Serial.println(F("Calibration routine"));
+
+  while (Serial.available() > 0)
+    Serial.read(); //Flush all characters
+  Serial.println(F("Press a key when the sensor is flat and straight on a table"));
+  while (Serial.available() == 0)
+  {
+    myFlexSensor.available();
+    delay(10); //Wait for user to press character
+  }
+
+  myFlexSensor.calibrateZero(); //Call when sensor is straight on both axis
+
+  while (Serial.available() > 0)
+    Serial.read(); //Flush all characters
+  Serial.println(F("Good. Now press a key when the sensor is flat on table but bent at 90 degrees (along X axis)."));
+  while (Serial.available() == 0)
+  {
+    myFlexSensor.available();
+    delay(10); //Wait for user to press character
+  }
+
+  myFlexSensor.calibrateX(); //Call when sensor is straight on Y axis and 90 degrees on X axis
+
+  Serial.println(F("Calibration complete."));
+}
 
 // void updateIzhikevichModel(double sensorValue, int sensorNumber) {
 //   // Convert sensor value to current input for the Izhikevich model
@@ -150,32 +185,3 @@ void loop()
 
 //   }
 // }
-
-void calibrate(ADS myFlexSensor)
-{
-  Serial.println(F("Calibration routine"));
-
-  while (Serial.available() > 0)
-    Serial.read(); //Flush all characters
-  Serial.println(F("Press a key when the sensor is flat and straight on a table"));
-  while (Serial.available() == 0)
-  {
-    myFlexSensor.available();
-    delay(10); //Wait for user to press character
-  }
-
-  myFlexSensor.calibrateZero(); //Call when sensor is straight on both axis
-
-  while (Serial.available() > 0)
-    Serial.read(); //Flush all characters
-  Serial.println(F("Good. Now press a key when the sensor is flat on table but bent at 90 degrees (along X axis)."));
-  while (Serial.available() == 0)
-  {
-    myFlexSensor.available();
-    delay(10); //Wait for user to press character
-  }
-
-  myFlexSensor.calibrateX(); //Call when sensor is straight on Y axis and 90 degrees on X axis
-
-  Serial.println(F("Calibration complete."));
-}
